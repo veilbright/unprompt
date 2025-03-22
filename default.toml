@@ -1,0 +1,32 @@
+[prompt]
+newline = false
+collapse = false
+section_pad = 1
+surround_pad = 1
+section_fill = " "
+blank_fill = " "
+
+[sections]
+[sections.pwd]
+path = "$PWD"
+format = "%f%b%p%r"
+visible = true
+priority = 40
+foreground = "green"
+position = "left"
+
+[sections.user]
+text = "$USER"
+format = "%f%b%t%r"
+visible = true
+priority = 29
+foreground = "cyan"
+position = "left"
+
+[sections.return_code]
+text = "$?"
+format = "%f%b%t%r"
+visible = false
+priority = 25
+foreground = "red"
+position = "center"
