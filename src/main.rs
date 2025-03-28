@@ -13,23 +13,13 @@ pub enum Theme {
 }
 
 fn main() {
-    let mut shell = shell::Shell::Bash;
-    let shell_instance: shell::ShellInstance;
-    let mut theme = Theme::Default;
-    let mut collapse: Option<prompt::Position> = None;
-    let mut newline = false;
-    let mut default_format = String::from("%f%b%i %t%p%r");
+    let mut config: Option<String> = None;
 
     let mut args = env::args().skip(1);
     while let Some(arg) = args.next() {
-        match &arg[..] {
-            "-s" => {
-                let value = parse_opt(&arg, args.next()).trim().to_lowercase();
-                shell = match &value[..] {
-                    "bash" => shell::Shell::Bash,
-                    "zsh" => shell::Shell::Zsh,
-                    _ => panic!("Unknown value for option '-s'"),
-                };
+        match arg[..].to_lowercase().as_str() {
+            "-c" | "--config" => {
+                config = Some(parse_opt(&arg, args.next()));
             }
             _ => panic!("Unknown arg: '{arg}'"),
         };
@@ -40,8 +30,8 @@ fn main() {
             }
         }
     }
-    let mut prompt = config::parse_config(None);
+    let mut prompt = config::parse_config(config.as_deref());
     prompt.columns = env::var("COLUMNS").unwrap().parse::<usize>().unwrap();
     println!("'{}'", prompt.sections[0].path);
-    println!("'{}'", prompt.term_text());
+    println!("{}", prompt.term_text());
 }

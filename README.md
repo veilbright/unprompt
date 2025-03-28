@@ -1,3 +1,6 @@
+Args:
+-c or --config: choose a config to use
+
 Format Section Rules:
 - %t : defined text
 - %i : defined icon
@@ -16,3 +19,9 @@ Format Section Rules:
 - %r : reset escape code
 - %% : '%'
 - %{ : '{'
+
+Config:
+- sections can have specific options set
+    - ~: replaces $HOME in the path with ~
+    - not_zero: only visible if the text isn't '0'
+    - not_empty: only visible if the text and path aren't empty

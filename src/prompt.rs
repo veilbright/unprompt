@@ -1,4 +1,4 @@
-use std::str::FromStr;
+use std::{env, str::FromStr};
 
 #[path = "./shell.rs"]
 pub mod shell;
@@ -24,6 +24,13 @@ impl FromStr for Position {
     }
 }
 
+#[derive(Default)]
+pub struct SectionOptions {
+    pub tilde: bool,
+    pub not_zero: bool,
+    pub not_empty: bool,
+}
+
 pub struct PromptSection {
     pub text: String,
     pub path: String, // text that will pass be used in path functions
@@ -35,11 +42,28 @@ pub struct PromptSection {
     pub foreground: String,
     pub background: String,
     pub position: Position,
+    pub options: SectionOptions,
 }
 
 impl PromptSection {
     fn is_visible(&self) -> bool {
+        if self.options.not_zero && self.text == "0" {
+            return false;
+        }
+        if self.options.not_empty && self.text.is_empty() && self.path.is_empty() {
+            return false;
+        }
         self.visible && !self.format.is_empty()
+    }
+
+    fn apply_options(&mut self) {
+        if self.options.tilde {
+            let home = env::var("HOME").unwrap();
+            let tilde_path = self.path.strip_prefix(&home);
+            if tilde_path.is_some() {
+                self.path = format!("~{}", tilde_path.unwrap());
+            }
+        };
     }
 }
 
@@ -73,9 +97,9 @@ impl Prompt<'_> {
             .iter()
             .filter(|s| s.is_visible() && s.position != Position::Prompt)
         {
-            let mut format_iter = section.format.chars();
+            let format_iter = section.format.chars();
             let mut escaped = false;
-            while let Some(c) = format_iter.next() {
+            for c in format_iter {
                 if escaped {
                     match c {
                         't' => len += section.text.chars().count(),
@@ -115,6 +139,26 @@ impl Prompt<'_> {
             len += self.section_fill.chars().count() * self.surround_pad * 2;
         }
         len
+    }
+
+    fn get_opposite_color(&self, color_escape: &str) -> String {
+        let mut opposite_color = String::new();
+        let mut s_buf = [0; 4];
+        let mut color_iter = color_escape.chars().peekable();
+        for c in color_iter.by_ref() {
+            match c {
+                '3' => {
+                    opposite_color += "4";
+                    break;
+                },
+                '4' => {
+                    opposite_color += "3";
+                    break;
+                },
+                _ => opposite_color += c.encode_utf8(&mut s_buf),
+            }
+        };
+        opposite_color + &color_iter.collect::<String>()
     }
 
     fn fit_prompt(&mut self) {
@@ -191,7 +235,7 @@ impl Prompt<'_> {
         new_path_vec.join("/")
     }
 
-    fn format_section<'f>(&self, section_i: usize) -> String {
+    fn format_section(&self, section_i: usize) -> String {
         let mut formatted = String::new();
         let sections: Vec<&PromptSection> = self.visible_sections_iter().collect();
         let section = sections[section_i];
@@ -206,7 +250,7 @@ impl Prompt<'_> {
                     'p' => formatted += &section.path,
                     'F' => formatted += &self.foreground,
                     'B' => formatted += &self.background,
-                    'r' => formatted += &self.shell.reset,
+                    'r' => formatted += self.shell.reset,
                     '%' => formatted += "%",
                     '{' => formatted += "{",
                     'f' => match format_iter.peek() {
@@ -285,14 +329,20 @@ impl Prompt<'_> {
                                     section_i,
                                 );
                             }
-                            None => {
-                                return Ok(self
-                                    .visible_sections_iter()
-                                    .nth(section_i)
-                                    .unwrap()
-                                    .foreground
-                                    .to_string());
-                            }
+                            None => match format_escape {
+                                'f' => {
+                                    return Ok(self
+                                        .visible_sections_iter()
+                                        .nth(section_i)
+                                        .unwrap()
+                                        .foreground
+                                        .to_string());
+                                },
+                                'b' => {
+                                    return Ok(self.get_opposite_color(&self.visible_sections_iter().nth(section_i).unwrap().foreground))
+                                }
+                                _ => panic!("Unrecognized character in format string")
+                            },
                             _ => continue,
                         },
                         'b' => match arg_iter.peek() {
@@ -329,7 +379,7 @@ impl Prompt<'_> {
         let mut depth = 0;
         let mut s_buf = [0; 4];
         // make sure to take the whole arg, including closing braces
-        while let Some(c_arg) = char_iter.next() {
+        for c_arg in char_iter.by_ref() {
             match c_arg {
                 '{' => depth += 1,
                 '}' => depth -= 1,
@@ -350,6 +400,8 @@ impl Prompt<'_> {
     pub fn term_text(&mut self) -> String {
         let mut prompt = String::new();
         let mut previous_position: Option<Position> = None;
+
+        self.sections.iter_mut().for_each(|s| s.apply_options());
 
         self.sections.sort_by_key(|s| s.position as isize);
         self.fit_prompt();
@@ -372,12 +424,11 @@ impl Prompt<'_> {
             println!("{}", section.format);
 
             // use variable for section position so it can be changed if collapsed
-            let section_position: Position;
-            if self.collapse.is_none() {
-                section_position = section.position;
+            let section_position = if self.collapse.is_none() {
+                section.position
             } else {
-                section_position = self.collapse.unwrap();
-            }
+                self.collapse.unwrap()
+            };
 
             // alignment code
             match previous_position {
@@ -413,7 +464,7 @@ impl Prompt<'_> {
                     prompt += &self.section_fill.repeat(self.section_pad);
                 }
             }
-
+            println!("TEXT: '{}'", self.section_fill);
             prompt += &self.format_section(section_i);
 
             if section_position != Position::Prompt {

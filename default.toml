@@ -4,29 +4,52 @@ collapse = false
 section_pad = 1
 surround_pad = 1
 section_fill = " "
-blank_fill = " "
+blank_fill = "─"
+shell = "bash"
 
 [sections]
+[sections.test]
+text = "TEST"
+format = "%b{%f{1}}%t%r"
+foreground = "yellow"
+background = "magenta"
+position = "right"
+
 [sections.pwd]
 path = "$PWD"
 format = "%f%b%p%r"
-visible = true
 priority = 40
 foreground = "green"
-position = "left"
+position = "right"
+options = ["~"]
 
 [sections.user]
 text = "$USER"
 format = "%f%b%t%r"
-visible = true
-priority = 29
+priority = 25
 foreground = "cyan"
-position = "left"
+position = "right"
 
 [sections.return_code]
-text = "$?"
+text = "$RETURN_CODE"
 format = "%f%b%t%r"
-visible = false
-priority = 25
+visible = true
+priority = 15
 foreground = "red"
 position = "center"
+options = ["not_zero"]
+
+[sections.python_env]
+text = "$VIRTUAL_ENV_PROMPT"
+format = "%f%b%t%r"
+visible = true
+priority = 15
+foreground = "blue"
+position = "right"
+options = ["not_empty"]
+
+[sections.prompt]
+format = " %f%r "
+priority = 1000
+foreground = "cyan"
+position = "prompt"

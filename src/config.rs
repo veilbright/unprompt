@@ -15,8 +15,8 @@ pub fn parse_config(config_path: Option<&str>) -> Prompt {
     let prompt_config = config_table.get_key_value("prompt").unwrap().1;
     let sections_config = config_table.get_key_value("sections").unwrap().1;
 
-    parse_prompt_config(&mut prompt, &prompt_config);
-    parse_sections_config(&mut prompt, &sections_config);
+    parse_prompt_config(&mut prompt, prompt_config);
+    parse_sections_config(&mut prompt, sections_config);
     prompt
 }
 
@@ -32,23 +32,38 @@ fn parse_sections_config(prompt: &mut Prompt, properties: &Value) {
     if !properties.is_table() {
         panic!("Unknown value in config");
     }
-    for (key, value) in properties.as_table().unwrap() {
+    for (_section, value) in properties.as_table().unwrap() {
         let section_values = value.as_table().unwrap();
         prompt.sections.push(prompt::PromptSection {
             text: match section_values.get_key_value("text") {
-                Some(text) => text
-                    .1
-                    .as_str()
-                    .expect("sections.text must be a string")
-                    .to_string(),
+                Some(text) => {
+                    let text_string = text.1.as_str().expect("sections.text must be a string").to_string();
+                    let mut text_chars = text_string.chars();
+                    if text_chars.next().is_some_and(|c| c == '$') {
+                        let env_str: String = text_chars.collect();
+                        match env::var(env_str) {
+                            Ok(env_value) => env_value,
+                            _err => String::new(),
+                        }
+                    }
+                    else {
+                        text_string
+                    }
+                },
                 None => String::new(),
             },
             path: match section_values.get_key_value("path") {
-                Some(path) => path
-                    .1
-                    .as_str()
-                    .expect("sections.path must be a string")
-                    .to_string(),
+                Some(path) => {
+                    let path_string = path.1.as_str().expect("sections.path must be a string").to_string();
+                    let mut path_chars = path_string.chars();
+                    if path_chars.next().is_some_and(|c| c == '$') {
+                        let env_str: String = path_chars.collect();
+                        env::var(env_str).expect("sections.path values that start with '$' must be valid environment variables")
+                    }
+                    else {
+                        path_string
+                    }
+                },
                 None => String::new(),
             },
             icon: match section_values.get_key_value("icon") {
@@ -122,6 +137,21 @@ fn parse_sections_config(prompt: &mut Prompt, properties: &Value) {
                 .expect("sections.position must be 'left', 'right', 'center', or 'prompt'"),
                 None => Position::LeftAlign,
             },
+            options: match section_values.get_key_value("options") {
+                Some(options_value) => {
+                    let mut section_options: prompt::SectionOptions = Default::default();
+                    for option in options_value.1.as_array().expect("options must be an array of strings") {
+                        match option.as_str().expect("options must be an array of strings") {
+                            "not_zero" => section_options.not_zero = true,
+                            "not_empty" => section_options.not_empty = true,
+                            "~" | "tilde" => section_options.tilde = true,
+                            unknown => panic!("Unrecognized option: '{unknown}'"),
+                        };
+                    };
+                    section_options
+                },
+                None => Default::default(),
+            }
         });
     }
 }
@@ -139,13 +169,18 @@ fn parse_prompt_config(prompt: &mut Prompt, properties: &Value) {
                 prompt.collapse = match value.as_bool() {
                     Some(bool_value) => match bool_value {
                         true => panic!(
-                            "prompt.collapse must be false, 'left', 'right', 'center', or 'prompt'"
+                            "prompt.collapse is true; must be false, 'left', 'right', 'center', or 'prompt'"
                         ),
                         false => None,
                     },
-                    None => Some(Position::from_str(&value.to_string()).expect(
-                        "prompt.collapse must be false, 'left', 'right', 'center', or 'prompt'",
-                    )),
+                    None => Some(
+                        Position::from_str(value.as_str().expect(
+                            "prompt.collapse must be false, 'left', 'right', 'center', or 'prompt'",
+                        ))
+                        .expect(
+                            "prompt.collapse must be false, 'left', 'right', 'center', or 'prompt'",
+                        ),
+                    ),
                 }
             }
             "section_pad" => {
@@ -157,7 +192,7 @@ fn parse_prompt_config(prompt: &mut Prompt, properties: &Value) {
                 .expect("prompt.section_pad must be a positive integer")
             }
             "surround_pad" => {
-                prompt.section_pad = usize::try_from(
+                prompt.surround_pad = usize::try_from(
                     value
                         .as_integer()
                         .expect("prompt.surround_pad must be a positive integer"),
@@ -165,9 +200,17 @@ fn parse_prompt_config(prompt: &mut Prompt, properties: &Value) {
                 .expect("prompt.surround_pad must be a positive integer")
             }
             "section_fill" => {
-                prompt.section_fill = value.to_string();
+                prompt.section_fill = value
+                    .as_str()
+                    .expect("prompt.section_fill must be a string")
+                    .to_string();
             }
-            "blank_fill" => prompt.blank_fill = value.to_string(),
+            "blank_fill" => {
+                prompt.blank_fill = value
+                    .as_str()
+                    .expect("prompt.blank_fill must be a string")
+                    .to_string()
+            }
             "shell" => {
                 prompt.shell = prompt::shell::ShellInstance::new(
                     prompt::shell::Shell::from_str(
