@@ -1,6 +1,4 @@
 use std::env;
-use crate::config::prompt::shell;
-use crate::config::prompt;
 
 #[path = "./config.rs"]
 mod config;
@@ -32,6 +30,5 @@ fn main() {
     }
     let mut prompt = config::parse_config(config.as_deref());
     prompt.columns = env::var("COLUMNS").unwrap().parse::<usize>().unwrap();
-    println!("'{}'", prompt.sections[0].path);
     println!("{}", prompt.term_text());
 }
