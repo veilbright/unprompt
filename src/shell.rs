@@ -47,7 +47,6 @@ impl ColorEscapes<'_> {
 #[derive(Default)]
 pub struct ShellInstance<'s> {
     pub reset: &'s str,
-    pub italic: &'s str,
     pub foreground: ColorEscapes<'s>,
     pub background: ColorEscapes<'s>,
 }
@@ -57,7 +56,6 @@ impl ShellInstance<'_> {
         match shell {
             Shell::Bash => ShellInstance {
                 reset: "\x1B[0m",
-                italic: "\x1B[3m",
                 foreground: ColorEscapes {
                     black: "\x1B[30m",
                     red: "\x1B[31m",
@@ -81,7 +79,6 @@ impl ShellInstance<'_> {
             },
             Shell::Zsh => ShellInstance {
                 reset: "%{\x1B[0m%}",
-                italic: "%{\x1B[3m%}",
                 foreground: ColorEscapes {
                     black: "%{\x1B[30m%}",
                     red: "%{\x1B[31m%}",

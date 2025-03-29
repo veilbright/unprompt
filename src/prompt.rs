@@ -225,13 +225,13 @@ impl Prompt<'_> {
         } else {
             new_path_vec.len()
         };
-        for i in 0..short_levels {
+        (0..short_levels).for_each(|i| {
             new_path_vec[i] = new_path_vec[i]
                 .chars()
                 .next()
                 .unwrap_or_default()
                 .to_string();
-        }
+        });
         new_path_vec.join("/")
     }
 
@@ -385,7 +385,6 @@ impl Prompt<'_> {
                 '}' => depth -= 1,
                 _ => (),
             }
-            println!("DEPTH: {depth}");
             arg += c_arg.encode_utf8(&mut s_buf);
             if depth <= 0 {
                 break;
@@ -393,7 +392,6 @@ impl Prompt<'_> {
         }
         arg.pop();
         arg = arg[1..].to_string();
-        println!("ARG: '{arg}'");
         arg
     }
 
@@ -421,8 +419,6 @@ impl Prompt<'_> {
 
         let mut visible_section_iter = self.visible_sections_iter().enumerate().peekable();
         while let Some((section_i, section)) = visible_section_iter.next() {
-            println!("{}", section.format);
-
             // use variable for section position so it can be changed if collapsed
             let section_position = if self.collapse.is_none() {
                 section.position
@@ -464,7 +460,6 @@ impl Prompt<'_> {
                     prompt += &self.section_fill.repeat(self.section_pad);
                 }
             }
-            println!("TEXT: '{}'", self.section_fill);
             prompt += &self.format_section(section_i);
 
             if section_position != Position::Prompt {

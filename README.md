@@ -1,7 +1,22 @@
-Args:
+# Unprompt
+A project I'm working on to learn about Rust.
+
+Currently, the prompt is completely functional, but the formatting still needs some updates. However, I use it inside Zsh with the default config.
+
+In order to use the project within Zsh, clone and build the repository, and add the following to your .zshrc:
+```
+setopt promptsubst
+precmd() {
+	RETURN_CODE=$?
+	PS1='$(<path to cloned directory>/target/release/unprompt)'
+}
+export RETURN_CODE=$?
+```
+
+## Args:
 -c or --config: choose a config to use
 
-Format Section Rules:
+## Format Section Rules:
 - %t : defined text
 - %i : defined icon
 - %p : defined path
