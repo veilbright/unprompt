@@ -1,7 +1,7 @@
 # Unprompt
 A project I'm working on to learn about Rust.
 
-Currently, the prompt is completely functional, and I use it inside Zsh with the default config.
+Currently, the prompt is completely functional, but the formatting still needs some updates. However, I use it inside Zsh with the default config.
 
 In order to use the project within Zsh, clone and build the repository, and add the following to your .zshrc:
 ```
