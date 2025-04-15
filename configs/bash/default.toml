@@ -3,8 +3,6 @@ newline = false
 section_pad = 1
 surround_pad = 1
 section_fill = " "
-foreground = "white"
-background = "black"
 blank_fill = "─"
 shell = "bash"
 
@@ -16,7 +14,6 @@ format = "%f%b%i %p%r"
 priority = 40
 foreground = "green"
 position = "right"
-order = 1
 options = ["~"]
 
 [sections.user]
@@ -25,7 +22,6 @@ icon = " "
 format = "%f%b%i %t%r"
 priority = 25
 foreground = "cyan"
-order = 3
 position = "right"
 
 [sections.return_code]
@@ -46,7 +42,6 @@ visible = true
 priority = 15
 foreground = "blue"
 position = "right"
-order = 2
 options = ["not_empty"]
 
 [sections.prompt]

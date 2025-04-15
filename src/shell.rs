@@ -67,7 +67,7 @@ impl ShellInstance<'_> {
                     white: "\x1B[37m",
                 },
                 background: ColorEscapes {
-                    black: "\x1B[49m",
+                    black: "\x1B[40m",
                     red: "\x1B[41m",
                     green: "\x1B[42m",
                     yellow: "\x1B[43m",

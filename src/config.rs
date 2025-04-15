@@ -137,6 +137,13 @@ fn parse_sections_config(prompt: &mut Prompt, properties: &Value) {
                 .expect("sections.position must be 'left', 'right', 'center', or 'prompt'"),
                 None => Position::LeftAlign,
             },
+            order: match section_values.get_key_value("order") {
+                Some(order) => {
+                    let order_int = order.1.as_integer().expect("sections.order must be a positive integer");
+                    order_int.try_into().expect("section.order must be a positive integer")
+                }
+                None => 0,
+            },
             options: match section_values.get_key_value("options") {
                 Some(options_value) => {
                     let mut section_options: prompt::SectionOptions = Default::default();
@@ -154,6 +161,7 @@ fn parse_sections_config(prompt: &mut Prompt, properties: &Value) {
             }
         });
     }
+    prompt.sections.sort_unstable_by_key(|k| k.order);
 }
 
 fn parse_prompt_config(prompt: &mut Prompt, properties: &Value) {
@@ -165,24 +173,6 @@ fn parse_prompt_config(prompt: &mut Prompt, properties: &Value) {
     for (key, value) in properties.as_table().unwrap() {
         match key.as_str() {
             "newline" => prompt.newline = value.as_bool().expect("prompt.newline must be a bool"),
-            "collapse" => {
-                prompt.collapse = match value.as_bool() {
-                    Some(bool_value) => match bool_value {
-                        true => panic!(
-                            "prompt.collapse is true; must be false, 'left', 'right', 'center', or 'prompt'"
-                        ),
-                        false => None,
-                    },
-                    None => Some(
-                        Position::from_str(value.as_str().expect(
-                            "prompt.collapse must be false, 'left', 'right', 'center', or 'prompt'",
-                        ))
-                        .expect(
-                            "prompt.collapse must be false, 'left', 'right', 'center', or 'prompt'",
-                        ),
-                    ),
-                }
-            }
             "section_pad" => {
                 prompt.section_pad = usize::try_from(
                     value

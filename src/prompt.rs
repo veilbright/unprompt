@@ -42,6 +42,7 @@ pub struct PromptSection {
     pub foreground: String,
     pub background: String,
     pub position: Position,
+    pub order: usize,
     pub options: SectionOptions,
 }
 
@@ -71,7 +72,6 @@ impl PromptSection {
 pub struct Prompt<'p> {
     pub sections: Vec<PromptSection>,
     pub newline: bool,
-    pub collapse: Option<Position>, // if set, override all alignments
     pub section_pad: usize,
     pub surround_pad: usize,
     pub columns: usize,
@@ -97,17 +97,47 @@ impl Prompt<'_> {
             .iter()
             .filter(|s| s.is_visible() && s.position != Position::Prompt)
         {
-            let format_iter = section.format.chars();
+            let mut format_iter = section.format.chars().peekable();
             let mut escaped = false;
-            for c in format_iter {
+            let mut depth = 0;
+            while let Some(c) = format_iter.next() {
                 if escaped {
                     match c {
-                        't' => len += section.text.chars().count(),
-                        'i' => len += section.icon.chars().count(),
-                        'p' => len += section.path.chars().count(),
-                        _ => (), // not worried about parsing errors, this is supposed to run quickly
+                        't' => {
+                            // text
+                            len += section.text.chars().count();
+                            escaped = false;
+                        }
+                        'i' => {
+                            // icon
+                            len += section.icon.chars().count();
+                            escaped = false;
+                        }
+                        'p' => {
+                            // path
+                            len += section.path.chars().count();
+                            escaped = false
+                        }
+                        'f' | 'b' => {
+                            if format_iter.peek().is_some_and(|c| *c == '{') {
+                                format_iter.next();
+                                depth += 1;
+                            } else {
+                                escaped = false;
+                            }
+                        }
+                        '}' => {
+                            // assuming a proper formatting string
+                            if depth > 0 {
+                                depth -= 1;
+                            } else {
+                                escaped = false
+                            }
+                        }
+                        'F' | 'B' => escaped = false,
+                        // could be an improper format, could be an escape code, we don't care because this should run as quickly as possible
+                        _ => (),
                     }
-                    escaped = false;
                 } else {
                     match c {
                         '%' => escaped = true,
@@ -115,15 +145,11 @@ impl Prompt<'_> {
                     }
                 }
             }
-            if self.collapse.is_none() {
-                match section.position {
-                    Position::LeftAlign => left_aligned += 1,
-                    Position::CenterAlign => center_aligned += 1,
-                    Position::RightAlign => right_aligned += 1,
-                    Position::Prompt => (),
-                }
-            } else {
-                left_aligned += 1; // set same alignment for len
+            match section.position {
+                Position::LeftAlign => left_aligned += 1,
+                Position::CenterAlign => center_aligned += 1,
+                Position::RightAlign => right_aligned += 1,
+                Position::Prompt => (),
             }
         }
         if left_aligned > 0 {
@@ -141,24 +167,36 @@ impl Prompt<'_> {
         len
     }
 
-    fn get_opposite_color(&self, color_escape: &str) -> String {
-        let mut opposite_color = String::new();
+    fn get_foreground_color_escape(&self, color_escape: &str) -> String {
+        let mut foreground_escape = String::new();
         let mut s_buf = [0; 4];
-        let mut color_iter = color_escape.chars().peekable();
+        let mut color_iter = color_escape.chars();
+        for c in color_iter.by_ref() {
+            match c {
+                '4' => {
+                    foreground_escape += "3";
+                    break;
+                }
+                _ => foreground_escape += c.encode_utf8(&mut s_buf),
+            }
+        }
+        foreground_escape + &color_iter.collect::<String>()
+    }
+
+    fn get_background_color_escape(&self, color_escape: &str) -> String {
+        let mut background_escape = String::new();
+        let mut s_buf = [0; 4];
+        let mut color_iter = color_escape.chars();
         for c in color_iter.by_ref() {
             match c {
                 '3' => {
-                    opposite_color += "4";
+                    background_escape += "4";
                     break;
-                },
-                '4' => {
-                    opposite_color += "3";
-                    break;
-                },
-                _ => opposite_color += c.encode_utf8(&mut s_buf),
+                }
+                _ => background_escape += c.encode_utf8(&mut s_buf),
             }
-        };
-        opposite_color + &color_iter.collect::<String>()
+        }
+        background_escape + &color_iter.collect::<String>()
     }
 
     fn fit_prompt(&mut self) {
@@ -313,7 +351,12 @@ impl Prompt<'_> {
                     _ => Err("Unrecognized format escape for offset"),
                 };
             } else {
-                return Ok(String::new()); // this is not really an error, just a bad format
+                // use the default colors instead
+                return match format_escape {
+                    'f' => Ok(self.foreground.to_string()),
+                    'b' => Ok(self.background.to_string()),
+                    _ => Err("Unrecognized format escape for offset"),
+                };
             }
         } else {
             let mut arg_iter = arg.chars().peekable();
@@ -323,11 +366,26 @@ impl Prompt<'_> {
                     match c {
                         'f' => match arg_iter.peek() {
                             Some('{') => {
-                                return self.process_color_arg(
+                                match self.process_color_arg(
                                     'f',
                                     &self.get_arg(arg_iter.by_ref()),
                                     section_i,
-                                );
+                                ) {
+                                    Ok(color_escape) => match format_escape {
+                                        'f' => {
+                                            return Ok(self.get_foreground_color_escape(
+                                                color_escape.as_str(),
+                                            ));
+                                        }
+                                        'b' => {
+                                            return Ok(self.get_background_color_escape(
+                                                color_escape.as_str(),
+                                            ));
+                                        }
+                                        _ => panic!("Unrecognized character in format string"),
+                                    },
+                                    _ => panic!("Failed to parse recursive color args"),
+                                }
                             }
                             None => match format_escape {
                                 'f' => {
@@ -337,30 +395,63 @@ impl Prompt<'_> {
                                         .unwrap()
                                         .foreground
                                         .to_string());
-                                },
-                                'b' => {
-                                    return Ok(self.get_opposite_color(&self.visible_sections_iter().nth(section_i).unwrap().foreground))
                                 }
-                                _ => panic!("Unrecognized character in format string")
+                                'b' => {
+                                    return Ok(self.get_background_color_escape(
+                                        &self
+                                            .visible_sections_iter()
+                                            .nth(section_i)
+                                            .unwrap()
+                                            .foreground,
+                                    ));
+                                }
+                                _ => panic!("Unrecognized character in format string"),
                             },
                             _ => continue,
                         },
                         'b' => match arg_iter.peek() {
                             Some('{') => {
-                                return self.process_color_arg(
+                                match self.process_color_arg(
                                     'b',
                                     &self.get_arg(arg_iter.by_ref()),
                                     section_i,
-                                );
+                                ) {
+                                    Ok(color_escape) => match format_escape {
+                                        'f' => {
+                                            return Ok(self.get_foreground_color_escape(
+                                                color_escape.as_str(),
+                                            ));
+                                        }
+                                        'b' => {
+                                            return Ok(self.get_background_color_escape(
+                                                color_escape.as_str(),
+                                            ));
+                                        }
+                                        _ => panic!("Unrecognized character in format string"),
+                                    },
+                                    _ => panic!("Failed to parse recursive color args"),
+                                }
                             }
-                            None => {
-                                return Ok(self
-                                    .visible_sections_iter()
-                                    .nth(section_i)
-                                    .unwrap()
-                                    .foreground
-                                    .to_string());
-                            }
+                            None => match format_escape {
+                                'b' => {
+                                    return Ok(self
+                                        .visible_sections_iter()
+                                        .nth(section_i)
+                                        .unwrap()
+                                        .foreground
+                                        .to_string());
+                                }
+                                'f' => {
+                                    return Ok(self.get_foreground_color_escape(
+                                        &self
+                                            .visible_sections_iter()
+                                            .nth(section_i)
+                                            .unwrap()
+                                            .background,
+                                    ));
+                                }
+                                _ => panic!("Unrecognized character in format string"),
+                            },
                             _ => continue,
                         },
                         _ => continue,
@@ -419,16 +510,9 @@ impl Prompt<'_> {
 
         let mut visible_section_iter = self.visible_sections_iter().enumerate().peekable();
         while let Some((section_i, section)) = visible_section_iter.next() {
-            // use variable for section position so it can be changed if collapsed
-            let section_position = if self.collapse.is_none() {
-                section.position
-            } else {
-                self.collapse.unwrap()
-            };
-
             // alignment code
             match previous_position {
-                None | Some(Position::LeftAlign) => match section_position {
+                None | Some(Position::LeftAlign) => match section.position {
                     Position::LeftAlign => (),
                     Position::CenterAlign => {
                         prompt += &self.blank_fill.repeat(left_columns);
@@ -440,7 +524,7 @@ impl Prompt<'_> {
                         prompt += &self.blank_fill.repeat(line_columns);
                     }
                 },
-                Some(Position::CenterAlign) => match section_position {
+                Some(Position::CenterAlign) => match section.position {
                     Position::LeftAlign => (),
                     Position::CenterAlign => (),
                     Position::RightAlign => prompt += &self.blank_fill.repeat(right_columns),
@@ -450,29 +534,29 @@ impl Prompt<'_> {
                 Some(Position::Prompt) => (),
             }
 
-            if section_position != Position::Prompt {
+            if section.position != Position::Prompt {
                 // surround pad at the beginning of a position
-                if previous_position.is_none_or(|p| p != section_position) {
+                if previous_position.is_none_or(|p| p != section.position) {
                     prompt += &self.section_fill.repeat(self.surround_pad);
                 }
                 // section padding within a position
-                else if previous_position.is_some_and(|p| p == section_position) {
+                else if previous_position.is_some_and(|p| p == section.position) {
                     prompt += &self.section_fill.repeat(self.section_pad);
                 }
             }
             prompt += &self.format_section(section_i);
 
-            if section_position != Position::Prompt {
+            if section.position != Position::Prompt {
                 // surround pad at the end of a position
                 if visible_section_iter
                     .peek()
-                    .is_none_or(|s| s.1.position != section_position)
+                    .is_none_or(|s| s.1.position != section.position)
                 {
                     prompt += &self.section_fill.repeat(self.surround_pad);
                 }
             }
 
-            previous_position = Some(section_position);
+            previous_position = Some(section.position);
         }
         prompt
     }

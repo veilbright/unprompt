@@ -1,41 +1,44 @@
 [prompt]
-newline = false
-section_pad = 1
-surround_pad = 1
-section_fill = " "
+newline = true
 foreground = "white"
 background = "black"
-blank_fill = "─"
-shell = "bash"
+section_pad = 0
+surround_pad = 0
+section_fill = " "
+blank_fill = " "
+shell = "zsh"
 
 [sections]
 [sections.pwd]
 path = "$PWD"
 icon = " "
-format = "%f%b%i %p%r"
+format = "%f%b %p %f{%b}%b{1}%r"
 priority = 40
-foreground = "green"
-position = "right"
-order = 1
+foreground = "black"
+background = "green"
+position = "left"
+order = 2
 options = ["~"]
 
 [sections.user]
 text = "$USER"
 icon = " "
-format = "%f%b%i %t%r"
+format = "%f%b %t %f{%b}%b{1}%r"
 priority = 25
-foreground = "cyan"
-order = 3
-position = "right"
+foreground = "black"
+background="cyan"
+order = 1
+position = "left"
 
 [sections.return_code]
 text = "$RETURN_CODE"
 icon = " "
-format = "%f%b%i%t%r"
-visible = true
+format = "%f%b %t %f{%b}%b{1}%r"
 priority = 15
-foreground = "red"
-position = "center"
+foreground = "black"
+background = "red"
+order = 100
+position = "left"
 options = ["not_zero"]
 
 [sections.python_env]
@@ -45,8 +48,7 @@ icon = "󰌠 "
 visible = true
 priority = 15
 foreground = "blue"
-position = "right"
-order = 2
+position = "left"
 options = ["not_empty"]
 
 [sections.prompt]
