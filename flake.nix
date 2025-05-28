@@ -11,6 +11,9 @@
     flake-utils.lib.eachDefaultSystem (system:
       let pkgs = nixpkgs.legacyPackages.${system};
       in {
-        devShells.default = pkgs.mkShell { packages = with pkgs; [ cargo ]; };
+        devShells.default = pkgs.mkShell {
+          packages = with pkgs; [ cargo rustc ];
+          RUST_BACKTRACE = 1;
+        };
       });
 }
